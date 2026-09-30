@@ -1,0 +1,269 @@
+# ── LLM-as-judge configuration ─────────────────────────────────────────────
+# Non-secret config. API keys live in `.env` (see .env.example), never here.
+
+models:
+  # DeepSeek's API silently redirects the "deepseek-chat" model id to
+  # "deepseek-flash" (the response's `model` field comes back as
+  # "deepseek-flash" even when "deepseek-chat" is requested), so data logged
+  # under this name may span two different underlying models depending on
+  # when it was scored. Kept disabled; use deepseek-flash / deepseek-v4-pro
+  # below instead, which name the real, current model ids directly.
+  - name: deepseek-chat
+    provider: deepseek
+    env_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    temperature: 0.0
+    input_mode: text   # sees raw Markdown source
+    enabled: false     # superseded by deepseek-flash / deepseek-v4-pro below
+
+  # Reasoning model: thinks step by step before answering, may reason more
+  # carefully about report-specific content than deepseek-chat's single-pass
+  # judgments. In practice the API was extremely slow (~6 min/call, ~9h for
+  # a full 90-call batch) - likely transient server-side load rather than an
+  # inherent property of the model. Re-enable to retry later.
+  - name: deepseek-reasoner
+    provider: deepseek
+    env_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    temperature: 0.0
+    input_mode: text
+    enabled: false
+
+  # Vision mode (screenshot of the rendered report instead of raw text) made
+  # overall correlation with humans worse, not better (r=-0.272 vs text
+  # mode's r=-0.176), and its free-text reasoning turned out to be generic
+  # boilerplate rather than genuinely image-grounded. Kept in text mode
+  # below so all judges in the panel share the same input modality.
+  - name: gpt-4o-mini
+    provider: openai
+    env_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    temperature: 0.0
+    input_mode: text
+    enabled: false  # already scored (90/90) in text mode; re-enable to redo
+
+  # ── Judge panel for the cross-model LLM-judge IAA comparison
+  # (llm_judge_iaa.py): OpenAI + DeepSeek, all text-mode for a clean,
+  # single-variable comparison. Question: do independent LLM judges agree
+  # with EACH OTHER more than human raters agree with each other, or do they
+  # scatter just as much (or in a different, shared direction reflecting
+  # common training biases)? OpenRouter free-tier models (Gemma/Qwen) were
+  # tried first but abandoned: persistent 429s from OpenRouter's shared free
+  # pool made a reliable 90-call batch infeasible.
+  - name: gpt-4o
+    provider: openai
+    env_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    temperature: 0.0
+    input_mode: text
+    enabled: false  # already scored (90/90); superseded by gpt-6-luna below
+
+  # Does NOT support a custom `temperature` (only the default value 1) -
+  # handled via `supports_temperature: false`.
+  #
+  # Extremely slow in practice (~4 min/call, ~6h for 90 calls) - likely a
+  # reasoning model with a long hidden thinking phase, same symptom as
+  # deepseek-reasoner above. Run standalone (run_gpt6luna_standalone.py),
+  # not alongside other models in the same run_judge.py invocation, so its
+  # slowness doesn't block the rest of the panel.
+  - name: gpt-6-luna
+    provider: openai
+    env_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    input_mode: text
+    supports_temperature: false
+    enabled: false  # run standalone, see note above
+  - name: deepseek-flash
+    provider: deepseek
+    env_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    temperature: 0.0
+    input_mode: text
+    enabled: true
+  - name: deepseek-v4-pro
+    provider: deepseek
+    env_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    temperature: 0.0
+    input_mode: text
+    enabled: true
+
+# Number of independent scoring calls per (model, report, criterion) triple.
+# >1 lets you report LLM self-consistency alongside human IAA.
+n_repeats: 1
+
+# ── Criteria (verbatim French wording + Likert anchors from LimeSurvey) ────
+# `question` is the exact question text from the CSV column headers
+# (data/questionnaire.md), verified identical across both surveys' raw
+# exports. `anchors` are the exact per-point option labels LimeSurvey
+# recorded for each answer (e.g. "4 : plutôt fluide"), pooled across both
+# surveys' R1-R5 slots (all 9 criteria x ~10 ratings each) so every
+# criterion's anchor wording is grounded in real rater-facing text rather
+# than guessed. The only gap: Q2's "1" point was never actually selected by
+# any rater in the data, so its anchor is inferred by the same
+# "pas du tout X / peu X / plus ou moins X / plutôt X / parfaitement X"
+# pattern every other criterion follows exactly.
+criteria:
+  - id: Q1
+    name: Fluidity
+    question: "Le rapport vous paraît-il fluide ?"
+    anchors:
+      1: "pas du tout fluide"
+      2: "peu fluide"
+      3: "plus ou moins fluide"
+      4: "plutôt fluide"
+      5: "parfaitement fluide"
+  - id: Q2
+    name: Conciseness
+    question: "Le rapport est-il concis ?"
+    anchors:
+      1: "pas du tout concis"   # inferred (never observed in the data), see note above
+      2: "peu concis"
+      3: "plus ou moins concis"  # inferred by the same pattern
+      4: "plutôt concis"
+      5: "parfaitement concis"
+  - id: Q3
+    name: Relevance
+    question: "Les informations données dans le rapport sont-elles pertinentes ?"
+    anchors:
+      1: "pas du tout pertinentes"  # inferred by pattern
+      2: "peu pertinentes"
+      3: "plus ou moins pertinentes"
+      4: "plutôt pertinentes"
+      5: "parfaitement pertinentes"
+  - id: Q4
+    name: Coherence
+    question: "Le rapport vous parait-il cohérent ?"
+    anchors:
+      1: "pas du tout cohérent"  # inferred by pattern
+      2: "peu cohérent"
+      3: "plus ou moins cohérent"
+      4: "plutôt cohérent"
+      5: "parfaitement cohérent"
+  - id: Q5
+    name: Session Info
+    question: "Le rapport fournit-il des informations pertinentes sur le déroulement de la séance ?"
+    anchors:
+      1: "pas du tout pertinent"
+      2: "peu pertinent"
+      3: "plus ou moins pertinent"
+      4: "plutôt pertinent"
+      5: "parfaitement pertinent"
+  - id: Q6
+    name: Affective States
+    question: "Est-ce que le rapport semble bien décrire les états affectifs exprimés par le participant au cours de la séance ?"
+    anchors:
+      1: "pas du tout décrit"  # inferred by pattern
+      2: "peu décrit"
+      3: "plus ou moins décrit"
+      4: "plutôt bien décrit"
+      5: "parfaitement décrit"
+  - id: Q7
+    name: Results
+    question: "Est-ce que les résultats des exercices sont présentés de façon claire ?"
+    anchors:
+      1: "pas du tout claire"  # inferred by pattern
+      2: "peu claire"
+      3: "plus ou moins claire"
+      4: "plutôt claire"
+      5: "parfaitement claire"
+  - id: Q8
+    name: Cognitive Functions
+    question: "Le rapport précise-t-il les fonctions cognitives et permet-il d'évaluer les fonctions cognitives du patient pendant la séance ?"
+    anchors:
+      1: "pas du tout précis"  # inferred by pattern
+      2: "peu précis"
+      3: "plus ou moins précis"
+      4: "plutôt précis"
+      5: "parfaitement précis"
+  - id: Q9
+    name: Linguistic Indicators
+    question: "Les indicateurs linguistiques présentés dans le rapport sont-ils utiles ?"
+    anchors:
+      1: "pas du tout utiles"
+      2: "peu utiles"
+      3: "plus ou moins utiles"
+      4: "plutôt utiles"
+      5: "parfaitement utiles"
+
+# ── Reports: the 10 underlying reports (5 sessions x 2 systems) ────────────
+# report_id numbering: T1-T5 = Template (by session order M01E..M05E),
+# G1-G5 = GPT-4 (same session order).
+# `path` = raw Markdown source (used by text-mode models).
+# `pdf_path` = the actual rendered PDF shown to human raters (Rapport_N.pdf,
+# mapped Rapport_1=T1, Rapport_2=G1, Rapport_3=T2, Rapport_4=G2, Rapport_5=T3,
+# Rapport_6=G3, Rapport_7=T4, Rapport_8=G4, Rapport_9=T5, Rapport_10=G5).
+reports:
+  - report_id: T1
+    system: Template
+    session: M01E
+    path: data/reports/template/report_M01E_seance1_0405.md
+    pdf_path: data/reports/pdf/Rapport_1.pdf
+  - report_id: T2
+    system: Template
+    session: M02E
+    path: data/reports/template/report_M02E_seance1_0605.md
+    pdf_path: data/reports/pdf/Rapport_3.pdf
+  - report_id: T3
+    system: Template
+    session: M03E
+    path: data/reports/template/report_M03E_seance1_1805.md
+    pdf_path: data/reports/pdf/Rapport_5.pdf
+  - report_id: T4
+    system: Template
+    session: M04E
+    path: data/reports/template/report_M04E_seance1_3105.md
+    pdf_path: data/reports/pdf/Rapport_7.pdf
+  - report_id: T5
+    system: Template
+    session: M05E
+    path: data/reports/template/report_M05E_seance1_1606.md
+    pdf_path: data/reports/pdf/Rapport_9.pdf
+  - report_id: G1
+    system: GPT-4
+    session: M01E
+    path: data/reports/gpt4/gpt-4-0613_M01E_seance1.md
+    pdf_path: data/reports/pdf/Rapport_2.pdf
+  - report_id: G2
+    system: GPT-4
+    session: M02E
+    path: data/reports/gpt4/gpt-4-0613_M02E_seance1.md
+    pdf_path: data/reports/pdf/Rapport_4.pdf
+  - report_id: G3
+    system: GPT-4
+    session: M03E
+    path: data/reports/gpt4/gpt-4-0613_M03E_seance1.md
+    pdf_path: data/reports/pdf/Rapport_6.pdf
+  - report_id: G4
+    system: GPT-4
+    session: M04E
+    path: data/reports/gpt4/gpt-4-0613_M04E_seance1.md
+    pdf_path: data/reports/pdf/Rapport_8.pdf
+  - report_id: G5
+    system: GPT-4
+    session: M05E
+    path: data/reports/gpt4/gpt-4-0613_M05E_seance1.md
+    pdf_path: data/reports/pdf/Rapport_10.pdf
+
+# ── Survey slot -> report_id mapping (as provided) ─────────────────────────
+# Survey n°1 (results-survey728958_anonymized.csv): T1, G2, T3, G4, T5
+# Survey n°2 (results-survey589241_anonymized.csv): T2, G1, G3, T4, G5
+surveys:
+  V1:
+    csv: data/results-survey728958_anonymized.csv
+    slots:
+      R1: T1
+      R2: G2
+      R3: T3
+      R4: G4
+      R5: T5
+  V2:
+    csv: data/results-survey589241_anonymized.csv
+    slots:
+      R1: T2
+      R2: G1
+      R3: G3
+      R4: T4
+      R5: G5
+
+output_dir: code/llm_judge/output

@@ -23,8 +23,10 @@ and criterion-level reliability for LLM-as-judge applicability.
 ├── code/
 │   ├── eval_results.ipynb   # IAA analysis: Krippendorff's alpha (overall + per-criterion),
 │   │                        # Therapist-vs-Student comparison (Mann-Whitney U / rank-biserial r),
-│   │                        # pooled and split by report-generation system
-│   └── Fig/                 # Pre-generated figures (also reproduced when notebook is run)
+│   │                        # pooled and split by report-generation system, LLM-as-judge validation
+│   ├── Fig/                 # Pre-generated figures (also reproduced when notebook is run)
+│   └── llm_judge/           # LLM-as-judge experiment: 5 LLM judges score the same 10 reports
+│                            # on the same 9 French criteria as the human survey
 ├── data/
 │   ├── results-survey728958_anonymized.csv   # Survey V1 raw responses (4 raters x 5 reports)
 │   ├── results-survey589241_anonymized.csv   # Survey V2 raw responses (4 raters x 5 reports)
@@ -45,6 +47,8 @@ See `data/questionnaire.md` for the full question wording.
 ## Reproducing the analysis
 
 **Dependencies**: `pip install pandas numpy matplotlib seaborn scipy scikit-learn krippendorff`
+(additional dependencies for the LLM-as-judge experiment below are in
+`code/llm_judge/requirements.txt`)
 
 Open `code/eval_results.ipynb` in Jupyter and run top to bottom. The notebook:
 1. Loads and preprocesses the two anonymized survey CSVs.
@@ -53,7 +57,13 @@ Open `code/eval_results.ipynb` in Jupyter and run top to bottom. The notebook:
 3. Runs Mann-Whitney U tests (with rank-biserial correlation as effect size)
    comparing Therapist vs. Student scoring patterns, both pooled and split by
    report-generation system (Template vs. GPT-4).
-4. Saves all generated figures to `code/Fig/`.
+4. Loads LLM-as-judge scores (from `code/llm_judge/`) and compares LLM-human
+   agreement against human IAA, and LLM-LLM agreement against human-human
+   agreement.
+5. Saves all generated figures to `code/Fig/`.
+
+Reproducing the LLM-as-judge scoring itself requires API keys; see
+`code/llm_judge/` for setup.
 
 ## Privacy & anonymization
 
