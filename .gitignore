@@ -1,1 +1,9 @@
 .DS_Store
+.env
+__pycache__/
+*.pyc
+code/llm_judge/output/
+code/llm_judge/FINDINGS.md
+code/Fig/
+data/reports/pdf/
+paper.tex
