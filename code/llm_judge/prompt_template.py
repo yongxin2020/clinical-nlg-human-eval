@@ -42,17 +42,6 @@ Question : {question}
 
 Répondez uniquement avec l'objet JSON {{"score": ..., "comment": ...}}."""
 
-# Image variant: no raw report text embedded (the model sees it as a
-# screenshot instead), so the instruction points at the image directly.
-USER_PROMPT_TEMPLATE_IMAGE = """Voici une capture d'écran du rapport de séance à évaluer (image ci-jointe).
-
-Question : {question}
-
-Échelle de notation :
-{anchor_block}
-
-Répondez uniquement avec l'objet JSON {{"score": ..., "comment": ...}}."""
-
 
 def build_anchor_block(anchors: dict) -> str:
     lines = [f"{point} = {label}" for point, label in sorted(anchors.items())]
@@ -62,13 +51,6 @@ def build_anchor_block(anchors: dict) -> str:
 def build_user_prompt(report_text: str, criterion: dict) -> str:
     return USER_PROMPT_TEMPLATE_TEXT.format(
         report_text=report_text.strip(),
-        question=criterion["question"],
-        anchor_block=build_anchor_block(criterion["anchors"]),
-    )
-
-
-def build_user_prompt_image(criterion: dict) -> str:
-    return USER_PROMPT_TEMPLATE_IMAGE.format(
         question=criterion["question"],
         anchor_block=build_anchor_block(criterion["anchors"]),
     )

@@ -102,10 +102,22 @@ def main():
         alpha = alpha_for_criterion(df, qid, report_ids)
         rows.append({"criterion": criteria_names[qid], "llm_judge_alpha": alpha})
 
-    # Overall: one long reliability matrix stacking all 9 criteria x 10 reports
-    # as if they were independent "items", same convention as the notebook's
-    # overall (non-per-criterion) alpha.
     models = sorted(df["model"].unique())
+    result_df = pd.DataFrame(rows).set_index("criterion")
+
+    # Primary summary: mean of the 9 per-criterion alphas, not a single alpha
+    # from one pooled 9x10 matrix stacking all criteria together. The two
+    # differ sharply on this data (mean-of-9 ~0.10 vs. pooled ~0.44) because
+    # pooling estimates one expected-disagreement term D_e jointly across all
+    # 9 criteria's marginal score distributions, so a criterion with unusually
+    # skewed scale usage can dominate D_e and distort alpha for criteria that
+    # individually show no such skew. Mean-of-9 is also the only one directly
+    # comparable to human alpha, which is itself a mean across 9 within-
+    # criterion matrices (human raters cannot be pooled into one matrix
+    # across the disconnected V1/V2 survey design). See paper.tex Appendix
+    # "Statistical Tests" for the full argument.
+    mean_of_9_alpha = np.nanmean(result_df["llm_judge_alpha"].values)
+
     all_items = [(qid, rid) for qid in criteria_ids for rid in report_ids]
     matrix = np.full((len(models), len(all_items)), np.nan)
     for i, model in enumerate(models):
@@ -114,18 +126,19 @@ def main():
             if item in model_df.index:
                 matrix[i, j] = model_df.loc[item]
     try:
-        overall_alpha = krippendorff.alpha(reliability_data=matrix, level_of_measurement="ordinal")
+        pooled_alpha = krippendorff.alpha(reliability_data=matrix, level_of_measurement="ordinal")
     except (AssertionError, ValueError):
-        overall_alpha = np.nan
+        pooled_alpha = np.nan
 
-    result_df = pd.DataFrame(rows).set_index("criterion")
     print(f"\n=== LLM-judge inter-rater agreement (Krippendorff's alpha, ordinal) ===")
     print(f"Judges treated as raters: {models}")
-    print(f"\nOverall (all 9 criteria x {len(report_ids)} reports): alpha = {overall_alpha:.3f}\n")
+    print(f"\nMean across {len(criteria_ids)} criteria (primary):  alpha = {mean_of_9_alpha:.3f}")
+    print(f"Pooled {len(criteria_ids)}x{len(report_ids)} matrix (for reference): alpha = {pooled_alpha:.3f}\n")
     print(result_df.round(3).to_string())
 
     out_path = output_dir / "llm_judge_iaa.csv"
-    result_df["overall_alpha"] = overall_alpha
+    result_df["mean_of_9_alpha"] = mean_of_9_alpha
+    result_df["pooled_alpha"] = pooled_alpha
     result_df.to_csv(out_path)
     print(f"\nSaved -> {out_path}")
     print(

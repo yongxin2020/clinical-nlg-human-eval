@@ -7,22 +7,10 @@ same way a human rater answers the LimeSurvey questionnaire one question at
 a time. This avoids score collapse (the model anchoring on a single value
 across all 9 dimensions when asked to score them jointly).
 
-Two input modes (see `input_mode` in config.yaml per model):
-  - "text":  the model reads the raw Markdown/HTML source of the report.
-  - "image": the model reads a PNG screenshot of the *rendered* report
-    (run render_reports.py first). This matters because human raters judged
-    the rendered report (headers, table borders, sections) — a text-only
-    judge reading raw source markup showed strong NEGATIVE correlation with
-    humans on visually-driven criteria like Fluidity (r=-0.605), traced to
-    exactly this input-fidelity gap (e.g. a report using a plain numbered
-    list instead of a table renders as visibly less structured, but reads
-    identically as flat markup to a text-only model).
-
 Usage:
     cd code/llm_judge
     pip install -r requirements.txt
     cp .env.example .env   # then fill in your real key(s)
-    python render_reports.py   # only needed once, for image-mode models
     python run_judge.py
 
 Reads config.yaml for model list, criteria (with Likert anchors), and report
@@ -35,7 +23,6 @@ model responses to output/raw_responses/ for auditing.
 """
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
@@ -47,7 +34,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from prompt_template import SYSTEM_PROMPT, build_user_prompt, build_user_prompt_image
+from prompt_template import SYSTEM_PROMPT, build_user_prompt
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent.parent
@@ -121,30 +108,10 @@ def extract_json_score(raw_text: str) -> tuple[int, str]:
     return val, comment
 
 
-def image_to_data_url(png_path: Path) -> str:
-    b64 = base64.b64encode(png_path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{b64}"
-
-
-def build_user_message(model_cfg: dict, report: dict, criterion: dict, output_dir: Path) -> dict:
-    if model_cfg.get("input_mode", "text") == "image":
-        png_path = output_dir / "rendered_reports" / f"{report['report_id']}.png"
-        if not png_path.exists():
-            raise FileNotFoundError(
-                f"{png_path} not found — run `python render_reports.py` first "
-                f"(needed for image-mode model {model_cfg['name']})."
-            )
-        return {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": build_user_prompt_image(criterion)},
-                {"type": "image_url", "image_url": {"url": image_to_data_url(png_path)}},
-            ],
-        }
-    else:
-        report_path = REPO_ROOT / report["path"]
-        report_text = report_path.read_text(encoding="utf-8")
-        return {"role": "user", "content": build_user_prompt(report_text, criterion)}
+def build_user_message(report: dict, criterion: dict) -> dict:
+    report_path = REPO_ROOT / report["path"]
+    report_text = report_path.read_text(encoding="utf-8")
+    return {"role": "user", "content": build_user_prompt(report_text, criterion)}
 
 
 def score_one(
@@ -152,10 +119,9 @@ def score_one(
     model_cfg: dict,
     report: dict,
     criterion: dict,
-    output_dir: Path,
     max_retries: int = 6,
 ) -> tuple[int, str, str]:
-    user_message = build_user_message(model_cfg, report, criterion, output_dir)
+    user_message = build_user_message(report, criterion)
 
     # Reasoning models can genuinely take a couple of minutes per call, but
     # if a single request hangs far longer than that, fail it and retry
@@ -190,6 +156,51 @@ def score_one(
     raise RuntimeError(f"Failed after {max_retries} retries: {last_err}")
 
 
+def run_model_incremental(model_cfg: dict, criteria: list, reports: list,
+                           raw_dir: Path, out_csv: Path) -> None:
+    """Score one model, saving after every single call and skipping
+    (report, criterion) pairs whose raw response already exists on disk.
+    For models slow enough (minutes per call) that a batch run risks losing
+    hours of progress if interrupted partway; resuming just re-runs main()."""
+    import pandas as pd
+
+    client = make_client(model_cfg)
+    for report in reports:
+        print(f"  {report['report_id']} ({report['system']}, {report['session']})", flush=True)
+        for criterion in criteria:
+            raw_path = raw_dir / f"{model_cfg['name']}_{report['report_id']}_{criterion['id']}_run1.txt"
+            if raw_path.exists():
+                print(f"    {criterion['id']} already done, skipping", flush=True)
+                continue
+
+            print(f"    {criterion['id']} ({criterion['name']})...", flush=True)
+            score, comment, raw_text = score_one(client, model_cfg, report, criterion)
+            raw_path.write_text(raw_text, encoding="utf-8")
+
+            row = pd.DataFrame([{
+                "model": model_cfg["name"],
+                "report_id": report["report_id"],
+                "system": report["system"],
+                "session": report["session"],
+                "criterion": criterion["id"],
+                "run": 1,
+                "score": score,
+                "comment": comment,
+            }])
+            if out_csv.exists():
+                existing = pd.read_csv(out_csv)
+                existing = existing[
+                    ~((existing["model"] == model_cfg["name"])
+                      & (existing["report_id"] == report["report_id"])
+                      & (existing["criterion"] == criterion["id"]))
+                ]
+                df = pd.concat([existing, row], ignore_index=True)
+            else:
+                df = row
+            df.to_csv(out_csv, index=False)
+            print(f"      score={score} (saved)", flush=True)
+
+
 def main():
     config = load_config()
     criteria = config["criteria"]
@@ -209,9 +220,17 @@ def main():
     out_csv = output_dir / "llm_scores_pointwise.csv"
 
     for model_cfg in enabled_models:
-        print(f"=== Model: {model_cfg['name']} (input_mode={model_cfg.get('input_mode', 'text')}) ===")
-        client = make_client(model_cfg)
+        print(f"=== Model: {model_cfg['name']} ===")
 
+        # Models slow enough that a multi-hour batch risks losing all
+        # progress if interrupted (set `incremental_save: true` in
+        # config.yaml) save after every call and skip completed pairs on
+        # resume, instead of accumulating in memory for one save at the end.
+        if model_cfg.get("incremental_save", False):
+            run_model_incremental(model_cfg, criteria, reports, raw_dir, out_csv)
+            continue
+
+        client = make_client(model_cfg)
         model_rows = []
         for report in reports:
             print(f"  {report['report_id']} ({report['system']}, {report['session']})")
@@ -221,7 +240,7 @@ def main():
                     print(f"    {criterion['id']} ({criterion['name']}) "
                           f"run {run_idx}/{n_repeats}...")
                     score, comment, raw_text = score_one(
-                        client, model_cfg, report, criterion, output_dir
+                        client, model_cfg, report, criterion
                     )
 
                     raw_path = raw_dir / (

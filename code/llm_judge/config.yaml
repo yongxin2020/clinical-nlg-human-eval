@@ -13,7 +13,6 @@ models:
     env_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
     temperature: 0.0
-    input_mode: text   # sees raw Markdown source
     enabled: false     # superseded by deepseek-flash / deepseek-v4-pro below
 
   # Reasoning model: thinks step by step before answering, may reason more
@@ -26,7 +25,6 @@ models:
     env_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
     temperature: 0.0
-    input_mode: text
     enabled: false
 
   # Vision mode (screenshot of the rendered report instead of raw text) made
@@ -39,7 +37,6 @@ models:
     env_key: OPENAI_API_KEY
     base_url: https://api.openai.com/v1
     temperature: 0.0
-    input_mode: text
     enabled: false  # already scored (90/90) in text mode; re-enable to redo
 
   # ── Judge panel for the cross-model LLM-judge IAA comparison
@@ -55,7 +52,6 @@ models:
     env_key: OPENAI_API_KEY
     base_url: https://api.openai.com/v1
     temperature: 0.0
-    input_mode: text
     enabled: false  # already scored (90/90); superseded by gpt-6-luna below
 
   # Does NOT support a custom `temperature` (only the default value 1) -
@@ -63,29 +59,27 @@ models:
   #
   # Extremely slow in practice (~4 min/call, ~6h for 90 calls) - likely a
   # reasoning model with a long hidden thinking phase, same symptom as
-  # deepseek-reasoner above. Run standalone (run_gpt6luna_standalone.py),
-  # not alongside other models in the same run_judge.py invocation, so its
-  # slowness doesn't block the rest of the panel.
+  # deepseek-reasoner above. `incremental_save: true` saves after every
+  # call and skips completed (report, criterion) pairs on resume, so a
+  # multi-hour run killed partway can pick up where it left off.
   - name: gpt-6-luna
     provider: openai
     env_key: OPENAI_API_KEY
     base_url: https://api.openai.com/v1
-    input_mode: text
     supports_temperature: false
-    enabled: false  # run standalone, see note above
+    incremental_save: true
+    enabled: false  # re-enable to run; see note above on expected runtime
   - name: deepseek-flash
     provider: deepseek
     env_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
     temperature: 0.0
-    input_mode: text
     enabled: true
   - name: deepseek-v4-pro
     provider: deepseek
     env_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
     temperature: 0.0
-    input_mode: text
     enabled: true
 
 # Number of independent scoring calls per (model, report, criterion) triple.
