@@ -1,7 +1,8 @@
-# Expert Disagreement as Signal: Evaluating Clinical NLG Without Reference Reports
+# clinical-nlg-human-eval
 
 This repository contains the code, anonymized data, and generated outputs
-supporting the human evaluation reported in the paper above.
+supporting the human evaluation reported in "Expert Disagreement as Signal:
+Evaluating Clinical NLG Without Reference Reports."
 
 In low-resource clinical NLG settings, no gold reference reports exist and
 expert disagreement is expected. This project treats disagreement as a
@@ -24,9 +25,11 @@ and criterion-level reliability for LLM-as-judge applicability.
 │   ├── eval_results.ipynb   # IAA analysis: Krippendorff's alpha (overall + per-criterion),
 │   │                        # Therapist-vs-Student comparison (Mann-Whitney U / rank-biserial r),
 │   │                        # pooled and split by report-generation system, LLM-as-judge validation
-│   ├── Fig/                 # Pre-generated figures (also reproduced when notebook is run)
-│   └── llm_judge/           # LLM-as-judge experiment: 5 LLM judges score the same 10 reports
-│                            # on the same 9 French criteria as the human survey
+│   ├── Fig/                 # Pre-generated figures (PNGs tracked for quick preview, PDFs
+│   │                        # gitignored and used only for the paper; both reproduced when
+│   │                        # the notebook is run)
+│   └── llm_judge/           # LLM-as-judge experiment: 5 LLM judges score the same 10
+│                            # reports on the same 9 French criteria as the human survey
 ├── data/
 │   ├── results-survey728958_anonymized.csv   # Survey V1 raw responses (4 raters x 5 reports)
 │   ├── results-survey589241_anonymized.csv   # Survey V2 raw responses (4 raters x 5 reports)
@@ -57,13 +60,14 @@ Open `code/eval_results.ipynb` in Jupyter and run top to bottom. The notebook:
 3. Runs Mann-Whitney U tests (with rank-biserial correlation as effect size)
    comparing Therapist vs. Student scoring patterns, both pooled and split by
    report-generation system (Template vs. GPT-4).
-4. Loads LLM-as-judge scores (from `code/llm_judge/`) and compares LLM-human
-   agreement against human IAA, and LLM-LLM agreement against human-human
-   agreement.
+4. Loads LLM-as-judge scores (`code/llm_judge/output/llm_scores_pointwise.csv`,
+   included in this repo so step 4 runs without any API keys) and compares
+   LLM-human agreement against human IAA, and LLM-LLM agreement against
+   human-human agreement.
 5. Saves all generated figures to `code/Fig/`.
 
-Reproducing the LLM-as-judge scoring itself requires API keys; see
-`code/llm_judge/` for setup.
+Re-running the LLM-as-judge scoring itself, rather than just using the
+included scores, requires API keys; see `code/llm_judge/` for setup.
 
 ## Privacy & anonymization
 

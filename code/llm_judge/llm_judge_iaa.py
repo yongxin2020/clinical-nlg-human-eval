@@ -50,7 +50,7 @@ def load_pointwise_scores(output_dir: Path) -> pd.DataFrame:
     # Exclude "deepseek-chat": DeepSeek's API now silently redirects this model
     # id to "deepseek-flash", so data logged under this name may span two
     # different underlying models depending on when it was scored (see
-    # config.yaml / FINDINGS.md). Kept in sync with eval_results.ipynb and
+    # config.yaml). Kept in sync with eval_results.ipynb and
     # compare_with_humans.py, which apply the same exclusion.
     df = df[df["model"] != "deepseek-chat"]
     # mean across runs (n_repeats) per (model, report_id, criterion)

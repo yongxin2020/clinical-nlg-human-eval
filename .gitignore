@@ -2,9 +2,9 @@
 .env
 __pycache__/
 *.pyc
-code/llm_judge/output/
-code/llm_judge/FINDINGS.md
-code/Fig/
+code/llm_judge/output/*
+!code/llm_judge/output/llm_scores_pointwise.csv
+code/Fig/*.pdf
 data/reports/pdf/
 paper.tex
 new_bib_entries.bib

@@ -106,8 +106,8 @@ def load_llm_scores(output_dir: Path) -> pd.DataFrame:
     # Exclude "deepseek-chat": DeepSeek's API now silently redirects this model
     # id to "deepseek-flash", so data logged under this name may span two
     # different underlying models depending on when it was scored (see
-    # config.yaml / FINDINGS.md). Kept in sync with eval_results.ipynb and
-    # llm_judge_iaa.py, which apply the same exclusion.
+    # config.yaml). Kept in sync with eval_results.ipynb and llm_judge_iaa.py,
+    # which apply the same exclusion.
     df = df[df["model"] != "deepseek-chat"]
     has_comment = "comment" in df.columns
 

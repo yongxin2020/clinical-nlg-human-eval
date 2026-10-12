@@ -51,9 +51,9 @@ class ChatClient:
     """Minimal OpenAI-compatible chat completions client (plain HTTP).
 
     Works for DeepSeek, OpenAI, and any other OpenAI-compatible
-    /chat/completions endpoint (incl. image content parts) without
-    depending on the `openai` SDK (whose recent versions need a newer
-    typing-extensions than some Python 3.9 setups can install).
+    /chat/completions endpoint, without depending on the `openai` SDK
+    (whose recent versions need a newer typing-extensions than some
+    Python 3.9 setups can install).
     """
 
     def __init__(self, api_key: str, base_url: str):
