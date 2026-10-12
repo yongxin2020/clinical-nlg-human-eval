@@ -15,11 +15,9 @@ Usage:
 
 Reads config.yaml for model list, criteria (with Likert anchors), and report
 paths. Writes one row per (model, report_id, criterion, run_index) to
-output/llm_scores_pointwise.csv (including a free-text `comment` field the
-model must justify its score with, mirroring the human questionnaire's
-[comment] fields - useful for auditing whether the model is reasoning about
-report-specific content or defaulting to generic boilerplate), plus raw
-model responses to output/raw_responses/ for auditing.
+output/llm_scores_pointwise.csv, including a free-text `comment` field
+where the model justifies its score, plus raw model responses to
+output/raw_responses/ for auditing.
 """
 from __future__ import annotations
 
@@ -91,8 +89,7 @@ def make_client(model_cfg: dict) -> ChatClient:
 
 def extract_json_score(raw_text: str) -> tuple[int, str]:
     """Pull {"score": n, "comment": "..."} out of a model response, tolerating
-    stray text or markdown code fences around it. `comment` defaults to ""
-    for backward compatibility with older raw responses that lack it."""
+    stray text or markdown code fences around it."""
     text = raw_text.strip()
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if not match:

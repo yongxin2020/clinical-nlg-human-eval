@@ -1,25 +1,14 @@
 """Inter-judge agreement (IAA) among LLM judges, compared against human IAA.
 
-Motivation: alongside LLM-as-judge, it's worth checking whether independent
-LLM judges agree with EACH OTHER more than human raters agree with each
-other. Two readings of a high LLM-LLM agreement result are possible and
-worth distinguishing in the writeup:
-  - LLMs converging on a genuine, checkable signal humans under-weight, or
-  - LLMs sharing training biases that produce spuriously high agreement
-    without tracking the actual construct (the same risk flagged in the
-    paper's own text: "higher LLM agreement on stylistic dimensions would
-    suggest shared training biases rather than genuine consensus").
-
-This script treats each configured judge model as one "rater" (same role
-human raters played in eval_results.ipynb) and computes Krippendorff's alpha
-(ordinal) across judges, overall and per criterion, using the same
-methodology as the human IAA analysis - so the two numbers are directly
-comparable.
+Treats each configured judge model as one "rater" (the same role human
+raters play in eval_results.ipynb) and computes Krippendorff's alpha
+(ordinal) across judges, overall and per criterion, using the same method
+as the human IAA analysis so the two numbers are directly comparable.
 
 Requires >=3 judge models to have been scored (run_judge.py, one row per
 model/report/criterion in output/llm_scores_pointwise.csv) for a
-meaningful multi-rater alpha (2 raters alone gives a valid but
-less-informative alpha).
+meaningful multi-rater alpha; 2 raters alone gives a valid but
+less-informative one.
 
 Usage:
     python llm_judge_iaa.py
@@ -105,17 +94,11 @@ def main():
     models = sorted(df["model"].unique())
     result_df = pd.DataFrame(rows).set_index("criterion")
 
-    # Primary summary: mean of the 9 per-criterion alphas, not a single alpha
-    # from one pooled 9x10 matrix stacking all criteria together. The two
-    # differ sharply on this data (mean-of-9 ~0.10 vs. pooled ~0.44) because
-    # pooling estimates one expected-disagreement term D_e jointly across all
-    # 9 criteria's marginal score distributions, so a criterion with unusually
-    # skewed scale usage can dominate D_e and distort alpha for criteria that
-    # individually show no such skew. Mean-of-9 is also the only one directly
-    # comparable to human alpha, which is itself a mean across 9 within-
-    # criterion matrices (human raters cannot be pooled into one matrix
-    # across the disconnected V1/V2 survey design). See paper.tex Appendix
-    # "Statistical Tests" for the full argument.
+    # Primary summary is the mean of the 9 per-criterion alphas, not a single
+    # alpha from one pooled 9x10 matrix: pooling lets one skewed criterion
+    # distort alpha for the rest, and mean-of-9 is what's comparable to the
+    # (also necessarily per-criterion) human alpha. See the paper's
+    # "Statistical Tests" appendix for the full argument.
     mean_of_9_alpha = np.nanmean(result_df["llm_judge_alpha"].values)
 
     all_items = [(qid, rid) for qid in criteria_ids for rid in report_ids]
@@ -141,13 +124,9 @@ def main():
     result_df["pooled_alpha"] = pooled_alpha
     result_df.to_csv(out_path)
     print(f"\nSaved -> {out_path}")
-    print(
-        "\nCompare against human Cross-survey alpha per criterion from "
-        "eval_results.ipynb (IAA_per_criterion_barchart) to check whether "
-        "LLM judges agree with each other more, less, or about the same as "
-        "human raters do — and whether that agreement lines up with the "
-        "a priori Tier classification or not."
-    )
+    print("Compare against the human per-criterion alpha in eval_results.ipynb "
+          "(IAA_per_criterion_barchart) to see whether judges agree with each "
+          "other more, less, or about the same as humans do.")
 
 
 if __name__ == "__main__":

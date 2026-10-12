@@ -25,9 +25,7 @@ and criterion-level reliability for LLM-as-judge applicability.
 │   ├── eval_results.ipynb   # IAA analysis: Krippendorff's alpha (overall + per-criterion),
 │   │                        # Therapist-vs-Student comparison (Mann-Whitney U / rank-biserial r),
 │   │                        # pooled and split by report-generation system, LLM-as-judge validation
-│   ├── Fig/                 # Pre-generated figures (PNGs tracked for quick preview, PDFs
-│   │                        # gitignored and used only for the paper; both reproduced when
-│   │                        # the notebook is run)
+│   ├── Fig/                 # Pre-generated figures, reproduced when the notebook is run
 │   └── llm_judge/           # LLM-as-judge experiment: 5 LLM judges score the same 10
 │                            # reports on the same 9 French criteria as the human survey
 ├── data/
@@ -60,14 +58,13 @@ Open `code/eval_results.ipynb` in Jupyter and run top to bottom. The notebook:
 3. Runs Mann-Whitney U tests (with rank-biserial correlation as effect size)
    comparing Therapist vs. Student scoring patterns, both pooled and split by
    report-generation system (Template vs. GPT-4).
-4. Loads LLM-as-judge scores (`code/llm_judge/output/llm_scores_pointwise.csv`,
-   included in this repo so step 4 runs without any API keys) and compares
-   LLM-human agreement against human IAA, and LLM-LLM agreement against
-   human-human agreement.
+4. Loads the included LLM-as-judge scores (`code/llm_judge/output/llm_scores_pointwise.csv`)
+   and compares LLM-human agreement against human IAA, and LLM-LLM agreement
+   against human-human agreement.
 5. Saves all generated figures to `code/Fig/`.
 
-Re-running the LLM-as-judge scoring itself, rather than just using the
-included scores, requires API keys; see `code/llm_judge/` for setup.
+Re-running the LLM-as-judge scoring itself requires API keys; see
+`code/llm_judge/` for setup.
 
 ## Privacy & anonymization
 
